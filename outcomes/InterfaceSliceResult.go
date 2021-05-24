@@ -44,7 +44,7 @@ func (self *SliceResult) Iter() *iterator.Iterator {
 }
 
 func (self *SliceResult) Index(i int) interface{} {
-	if i > len(self.Result) {
+	if i >= len(self.Result) {
 		return nil
 	} else {
 		return self.Result[i]

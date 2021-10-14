@@ -17,7 +17,7 @@ import (
 
 var redisClient_Once sync.Once
 var redisClient *redis.Client
-var RedisConfig *redis.Options
+var RedisConfig interface{}
 
 type RedisConf struct{}
 
@@ -54,9 +54,17 @@ func (*RedisConf) ConfigPrepare(config interface{}) {
 		}
 	case *redis.Options:
 		RedisConfig = config.(*redis.Options)
+	case *redis.FailoverOptions:
+		RedisConfig = config.(*redis.FailoverOptions)
 	}
 }
 
+//ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*100)
+//user_credential_login_count := &userCredentialLoginCount{
+//	ID:             "hast_users",
+//	AcountPwdCount: 1,
+//	TokenCount:     2,
+//}
 //返回一个全新的配置
 func ConfigNew() *redis.Options {
 	return &redis.Options{}
@@ -64,7 +72,11 @@ func ConfigNew() *redis.Options {
 
 func Redis() *redis.Client {
 	redisClient_Once.Do(func() {
-		redisClient = redis.NewClient(RedisConfig)
+		if v, ok := RedisConfig.(*redis.Options); ok {
+			redisClient = redis.NewClient(v)
+		} else {
+			redisClient = redis.NewFailoverClient(RedisConfig.(*redis.FailoverOptions))
+		}
 		pong, err := redisClient.Ping().Result()
 		if err != nil {
 			logger.Error(fmt.Sprintf(("connect error:%s"), err.Error()))

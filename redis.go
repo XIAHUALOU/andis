@@ -6,9 +6,10 @@ package andis
  * @Email: Variou.xia@aishu.cn
  */
 import (
+	"context"
 	"fmt"
 	"github.com/XIAHUALOU/andis/logger"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v8"
 	"log"
 	"runtime"
 	"sync"
@@ -77,7 +78,7 @@ func Redis() *redis.Client {
 		} else {
 			redisClient = redis.NewFailoverClient(RedisConfig.(*redis.FailoverOptions))
 		}
-		pong, err := redisClient.Ping().Result()
+		pong, err := redisClient.Ping(context.Background()).Result()
 		if err != nil {
 			logger.Error(fmt.Sprintf(("connect error:%s"), err.Error()))
 		}

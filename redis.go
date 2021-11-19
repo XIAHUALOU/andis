@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/XIAHUALOU/andis/logger"
+	"github.com/XIAHUALOU/andis/operations"
 	"github.com/go-redis/redis/v8"
 	"log"
 	"runtime"
@@ -17,7 +18,7 @@ import (
 )
 
 var redisClient_Once sync.Once
-var redisClient *redis.Client
+var redisClient operations.RedisOperator
 var RedisConfig interface{}
 
 type RedisConf struct{}
@@ -57,6 +58,8 @@ func (*RedisConf) ConfigPrepare(config interface{}) {
 		RedisConfig = config.(*redis.Options)
 	case *redis.FailoverOptions:
 		RedisConfig = config.(*redis.FailoverOptions)
+	case *redis.ClusterClient:
+		RedisConfig = config.(*redis.ClusterOptions)
 	}
 }
 
@@ -71,10 +74,12 @@ func ConfigNew() *redis.Options {
 	return &redis.Options{}
 }
 
-func Redis() *redis.Client {
+func Redis() operations.RedisOperator {
 	redisClient_Once.Do(func() {
 		if v, ok := RedisConfig.(*redis.Options); ok {
 			redisClient = redis.NewClient(v)
+		} else if v, ok := RedisConfig.(*redis.ClusterOptions); ok {
+			redisClient = redis.NewClusterClient(v)
 		} else {
 			redisClient = redis.NewFailoverClient(RedisConfig.(*redis.FailoverOptions))
 		}

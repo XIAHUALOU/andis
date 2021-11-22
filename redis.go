@@ -9,8 +9,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/XIAHUALOU/andis/logger"
-	"github.com/XIAHUALOU/andis/operations"
-	"github.com/go-redis/redis/v8"
+	r "github.com/go-redis/redis/v8"
 	"log"
 	"runtime"
 	"sync"
@@ -18,7 +17,7 @@ import (
 )
 
 var redisClient_Once sync.Once
-var redisClient operations.RedisOperator
+var redisClient RedisOperator
 var RedisConfig interface{}
 
 type RedisConf struct{}
@@ -31,7 +30,7 @@ func NewRedisCrud() *RedisConf {
 func (*RedisConf) ConfigPrepare(config interface{}) {
 	switch config.(type) {
 	case string:
-		RedisConfig = &redis.Options{
+		RedisConfig = &r.Options{
 			Network:            "tcp",
 			Addr:               config.(string),
 			DialTimeout:        5 * time.Second,
@@ -43,7 +42,7 @@ func (*RedisConf) ConfigPrepare(config interface{}) {
 			IdleCheckFrequency: 60 * time.Second,
 		}
 	case []byte:
-		RedisConfig = &redis.Options{
+		RedisConfig = &r.Options{
 			Network:            "tcp",
 			Addr:               string(config.([]byte)),
 			DialTimeout:        5 * time.Second,
@@ -54,12 +53,12 @@ func (*RedisConf) ConfigPrepare(config interface{}) {
 			IdleTimeout:        5 * time.Second,
 			IdleCheckFrequency: 60 * time.Second,
 		}
-	case *redis.Options:
-		RedisConfig = config.(*redis.Options)
-	case *redis.FailoverOptions:
-		RedisConfig = config.(*redis.FailoverOptions)
-	case *redis.ClusterClient:
-		RedisConfig = config.(*redis.ClusterOptions)
+	case *r.Options:
+		RedisConfig = config.(*r.Options)
+	case *r.FailoverOptions:
+		RedisConfig = config.(*r.FailoverOptions)
+	case *r.ClusterClient:
+		RedisConfig = config.(*r.ClusterOptions)
 	}
 }
 
@@ -70,18 +69,48 @@ func (*RedisConf) ConfigPrepare(config interface{}) {
 //	TokenCount:     2,
 //}
 //返回一个全新的配置
-func ConfigNew() *redis.Options {
-	return &redis.Options{}
+func ConfigNew() *r.Options {
+	return &r.Options{}
 }
 
-func Redis() operations.RedisOperator {
+type RedisOperator interface {
+	Get(context.Context, string) *r.StringCmd
+	HGet(context.Context, string, string) *r.StringCmd
+	MGet(context.Context, ...string) *r.SliceCmd
+	HMGet(context.Context, string, ...string) *r.SliceCmd
+	Set(context.Context, string, interface{}, time.Duration) *r.StatusCmd
+	SetNX(context.Context, string, interface{}, time.Duration) *r.BoolCmd
+	SetXX(context.Context, string, interface{}, time.Duration) *r.BoolCmd
+	HSet(context.Context, string, ...interface{}) *r.IntCmd
+	HMSet(context.Context, string, ...interface{}) *r.BoolCmd
+	Expire(context.Context, string, time.Duration) *r.BoolCmd
+	Del(context.Context, ...string) *r.IntCmd
+	TTL(context.Context, string) *r.DurationCmd
+	ZAdd(context.Context, string, ...*r.Z) *r.IntCmd
+	ZRem(context.Context, string, ...interface{}) *r.IntCmd
+	ZCard(context.Context, string) *r.IntCmd
+	ZIncrBy(context.Context, string, float64, string) *r.FloatCmd
+	ZCount(context.Context, string, string, string) *r.IntCmd
+	ZRank(context.Context, string, string) *r.IntCmd
+	ZRevRank(context.Context, string, string) *r.IntCmd
+	ZScore(context.Context, string, string) *r.FloatCmd
+	ZRange(context.Context, string, int64, int64) *r.StringSliceCmd
+	ZRevRange(context.Context, string, int64, int64) *r.StringSliceCmd
+	ZRangeByScore(context.Context, string, *r.ZRangeBy) *r.StringSliceCmd
+	ZRevRangeByScore(context.Context, string, *r.ZRangeBy) *r.StringSliceCmd
+	ZRemRangeByScore(context.Context, string, string, string) *r.IntCmd
+	ZRemRangeByRank(context.Context, string, int64, int64) *r.IntCmd
+	Ping(ctx context.Context) *r.StatusCmd
+}
+
+func Redis() RedisOperator {
 	redisClient_Once.Do(func() {
-		if v, ok := RedisConfig.(*redis.Options); ok {
-			redisClient = redis.NewClient(v)
-		} else if v, ok := RedisConfig.(*redis.ClusterOptions); ok {
-			redisClient = redis.NewClusterClient(v)
+		if v, ok := RedisConfig.(*r.Options); ok {
+			redisClient = r.NewClient(v)
+		} else if v, ok := RedisConfig.(*r.ClusterOptions); ok {
+			redisClient = r.NewClusterClient(v)
 		} else {
-			redisClient = redis.NewFailoverClient(RedisConfig.(*redis.FailoverOptions))
+			redisClient = r.NewFailoverClient(RedisConfig.(*r.FailoverOptions))
 		}
 		pong, err := redisClient.Ping(context.Background()).Result()
 		if err != nil {

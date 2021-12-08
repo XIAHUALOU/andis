@@ -8,17 +8,14 @@ package andis
 import (
 	"context"
 	"fmt"
+	"github.com/XIAHUALOU/andis/client"
 	"github.com/XIAHUALOU/andis/logger"
 	r "github.com/go-redis/redis/v8"
-	"log"
 	"runtime"
-	"sync"
 	"time"
 )
 
-var redisClient_Once sync.Once
-var redisClient RedisOperator
-var RedisConfig interface{}
+//var redisClient_Once sync.Once
 
 type RedisConf struct{}
 
@@ -27,7 +24,8 @@ func NewRedisCrud() *RedisConf {
 }
 
 //使用默认配置
-func (*RedisConf) ConfigPrepare(config interface{}) {
+func (*RedisConf) ConfigPrepare(config interface{}) interface{} {
+	var RedisConfig interface{}
 	switch config.(type) {
 	case string:
 		RedisConfig = &r.Options{
@@ -60,6 +58,7 @@ func (*RedisConf) ConfigPrepare(config interface{}) {
 	case *r.ClusterClient:
 		RedisConfig = config.(*r.ClusterOptions)
 	}
+	return RedisConfig
 }
 
 //ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*100)
@@ -73,50 +72,18 @@ func ConfigNew() *r.Options {
 	return &r.Options{}
 }
 
-type RedisOperator interface {
-	Get(context.Context, string) *r.StringCmd
-	HGet(context.Context, string, string) *r.StringCmd
-	MGet(context.Context, ...string) *r.SliceCmd
-	HMGet(context.Context, string, ...string) *r.SliceCmd
-	Set(context.Context, string, interface{}, time.Duration) *r.StatusCmd
-	SetNX(context.Context, string, interface{}, time.Duration) *r.BoolCmd
-	SetXX(context.Context, string, interface{}, time.Duration) *r.BoolCmd
-	HSet(context.Context, string, ...interface{}) *r.IntCmd
-	HMSet(context.Context, string, ...interface{}) *r.BoolCmd
-	Expire(context.Context, string, time.Duration) *r.BoolCmd
-	Del(context.Context, ...string) *r.IntCmd
-	TTL(context.Context, string) *r.DurationCmd
-	ZAdd(context.Context, string, ...*r.Z) *r.IntCmd
-	ZRem(context.Context, string, ...interface{}) *r.IntCmd
-	ZCard(context.Context, string) *r.IntCmd
-	ZIncrBy(context.Context, string, float64, string) *r.FloatCmd
-	ZCount(context.Context, string, string, string) *r.IntCmd
-	ZRank(context.Context, string, string) *r.IntCmd
-	ZRevRank(context.Context, string, string) *r.IntCmd
-	ZScore(context.Context, string, string) *r.FloatCmd
-	ZRange(context.Context, string, int64, int64) *r.StringSliceCmd
-	ZRevRange(context.Context, string, int64, int64) *r.StringSliceCmd
-	ZRangeByScore(context.Context, string, *r.ZRangeBy) *r.StringSliceCmd
-	ZRevRangeByScore(context.Context, string, *r.ZRangeBy) *r.StringSliceCmd
-	ZRemRangeByScore(context.Context, string, string, string) *r.IntCmd
-	ZRemRangeByRank(context.Context, string, int64, int64) *r.IntCmd
-	Ping(ctx context.Context) *r.StatusCmd
-}
-
-func Redis() RedisOperator {
-	redisClient_Once.Do(func() {
-		if v, ok := RedisConfig.(*r.Options); ok {
-			redisClient = r.NewClient(v)
-		} else if v, ok := RedisConfig.(*r.ClusterOptions); ok {
-			redisClient = r.NewClusterClient(v)
-		} else {
-			redisClient = r.NewFailoverClient(RedisConfig.(*r.FailoverOptions))
-		}
-		pong, err := redisClient.Ping(context.Background()).Result()
-		if err != nil {
-			logger.Error(fmt.Sprintf(("connect error:%s"), err.Error()))
-		}
-		log.Println(pong)
-	})
+func Redis(RedisConfig interface{}) client.RedisOperator {
+	var redisClient client.RedisOperator
+	if v, ok := RedisConfig.(*r.Options); ok {
+		redisClient = r.NewClient(v)
+	} else if v, ok := RedisConfig.(*r.ClusterOptions); ok {
+		redisClient = r.NewClusterClient(v)
+	} else {
+		redisClient = r.NewFailoverClient(RedisConfig.(*r.FailoverOptions))
+	}
+	_, err := redisClient.Ping(context.Background()).Result()
+	if err != nil {
+		logger.Error(fmt.Sprintf(("connect error:%s"), err.Error()))
+	}
 	return redisClient
 }
